@@ -2,30 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>ERC20 Token Sale Demo</title>
+  <title>ERC20 Token Sale & Transfer Demo</title>
   <style>
     body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; }
-    button, input { display: block; margin: .5rem 0; padding: .5rem 1rem; width: 100%; box-sizing: border-box; }
+    h2 { margin-top: 1.5rem; }
+    input, button { display: block; width: 100%; margin: .5rem 0; padding: .5rem; box-sizing: border-box; }
   </style>
 </head>
 <body>
-  <h1>💰 ERC20 Token Sale</h1>
+  <h1>💰 ERC20 Token Sale & Transfer</h1>
 
   <button id="connect">🔗 Connect Wallet</button>
 
-  <!-- NEW: enter ETH amount with two decimals -->
-  <input 
-    id="buyAmount" 
-    type="number" 
-    step="0.01" 
-    min="0.01" 
-    placeholder="Enter ETH amount (e.g. 1.25)" 
-  />
-  <button id="buy">💸 Buy Tokens</button>
+  <h2>Buy Tokens</h2>
+  <input  id="buyAmount"    type="number" step="0.01" min="0.01" placeholder="ETH amount (e.g. 1.25)" />
+  <button id="buy">💸 Buy</button>
 
+  <h2>Sell Tokens</h2>
+  <input  id="sellAmount"   type="number" step="0.01" min="0.01" placeholder="G10 amount (e.g. 2.40)" />
+  <button id="sell">💱 Sell</button>
+
+  <h2>Transfer Tokens</h2>
+  <input  id="transferAddr" type="text"               placeholder="Recipient address" />
+  <input  id="transferAmt"  type="number" step="0.01" min="0.01" placeholder="G10 amount (e.g. 5.00)" />
+  <button id="transfer">🚚 Transfer</button>
+
+  <h2>Info</h2>
   <button id="balance">📦 My Token Balance</button>
   <button id="sold">📊 Tokens Sold</button>
-  <button id="withdraw">🔐 Withdraw (Owner)</button>
+
+  <h2>Admin</h2>
+  <button id="withdraw">🔐 Withdraw ETH</button>
   <button id="faucet">💧 Faucet 1 000 000 ETH</button>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
