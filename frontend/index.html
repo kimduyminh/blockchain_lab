@@ -1,41 +1,127 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>ERC20 Token Sale & Transfer Demo</title>
-  <style>
-    body { font-family: sans-serif; max-width: 400px; margin: 2rem auto; }
-    h2 { margin-top: 1.5rem; }
-    input, button { display: block; width: 100%; margin: .5rem 0; padding: .5rem; box-sizing: border-box; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KDMToken - Buy & Sell Interface</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Using unpkg CDN which is more reliable -->
+    <script src="https://unpkg.com/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 </head>
 <body>
-  <h1>💰 ERC20 Token Sale & Transfer</h1>
+    <div class="container">
+        <header>
+            <h1>KDMToken Exchange</h1>
+            <div id="wallet-status">
+                <span id="wallet-address">Not connected</span>
+                <button id="connect-wallet">Connect Wallet</button>
+            </div>
+        </header>
 
-  <button id="connect">🔗 Connect Wallet</button>
+        <div class="info-container">
+            <div class="info-card">
+                <h2>Token Information</h2>
+                <div class="info-row">
+                    <span>Name:</span>
+                    <span>KDMTOKEN</span>
+                </div>
+                <div class="info-row">
+                    <span>Symbol:</span>
+                    <span>KDM</span>
+                </div>
+                <div class="info-row">
+                    <span>Current Price:</span>
+                    <span id="token-price">Loading...</span>
+                </div>
+                <div class="info-row">
+                    <span>Max Supply:</span>
+                    <span id="max-supply">Loading...</span>
+                </div>
+                <div class="info-row">
+                    <span>Tokens Sold:</span>
+                    <span id="sold-tokens">Loading...</span>
+                </div>
+            </div>
 
-  <h2>Buy Tokens</h2>
-  <input  id="buyAmount"    type="number" step="0.01" min="0.01" placeholder="ETH amount (e.g. 1.25)" />
-  <button id="buy">💸 Buy</button>
+            <div class="info-card">
+                <h2>Your Balance</h2>
+                <div class="info-row">
+                    <span>ETH Balance:</span>
+                    <span id="eth-balance">-</span>
+                </div>
+                <div class="info-row">
+                    <span>KDM Balance:</span>
+                    <span id="token-balance">-</span>
+                </div>
+                <!-- Demo Funds Button -->
+                <button id="add-demo-funds" class="demo-button">🚀 Add Demo ETH</button>
+                <div id="demo-status" class="status"></div>
+            </div>
+        </div>
 
-  <h2>Sell Tokens</h2>
-  <input  id="sellAmount"   type="number" step="0.01" min="0.01" placeholder="G10 amount (e.g. 2.40)" />
-  <button id="sell">💱 Sell</button>
+        <div class="action-container">
+            <div class="action-card">
+                <h2>Buy Tokens</h2>
+                <div class="input-group">
+                    <label for="buy-eth-amount">ETH Amount:</label>
+                    <input type="number" id="buy-eth-amount" placeholder="0.0" step="0.01" min="0">
+                </div>
+                <div class="info-row estimate">
+                    <span>Estimated KDM:</span>
+                    <span id="buy-token-estimate">0</span>
+                </div>
+                <button id="buy-tokens" class="action-button">Buy Tokens</button>
+                <div id="buy-status" class="status"></div>
+            </div>
 
-  <h2>Transfer Tokens</h2>
-  <input  id="transferAddr" type="text"               placeholder="Recipient address" />
-  <input  id="transferAmt"  type="number" step="0.01" min="0.01" placeholder="G10 amount (e.g. 5.00)" />
-  <button id="transfer">🚚 Transfer</button>
+            <div class="action-card">
+                <h2>Sell Tokens</h2>
+                <div class="input-group">
+                    <label for="sell-token-amount">KDM Amount:</label>
+                    <input type="number" id="sell-token-amount" placeholder="0.0" step="1" min="0">
+                </div>
+                <div class="info-row estimate">
+                    <span>Estimated ETH:</span>
+                    <span id="sell-eth-estimate">0</span>
+                </div>
+                <button id="sell-tokens" class="action-button">Sell Tokens</button>
+                <div id="sell-status" class="status"></div>
+            </div>
+        </div>
 
-  <h2>Info</h2>
-  <button id="balance">📦 My Token Balance</button>
-  <button id="sold">📊 Tokens Sold</button>
+        <div class="transaction-container">
+            <h2>Recent Transactions</h2>
+            <div id="transactions" class="transactions-list">
+                <div class="no-transactions">No transactions yet</div>
+            </div>
+        </div>
+        
+        <div class="admin-container">
+            <button id="reset-contract" class="admin-button">Reset Contract Address</button>
+        </div>
+    </div>
 
-  <h2>Admin</h2>
-  <button id="withdraw">🔐 Withdraw ETH</button>
-  <button id="faucet">💧 Faucet 1 000 000 ETH</button>
+    <footer>
+        <p>KDMToken &copy; 2025 | Contract Address: <span id="contract-address">Loading...</span></p>
+    </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
-  <script src="app.js"></script>
+    <script src="script.js"></script>
+    <div id="pendingPaymentsSection" style="display: none;">
+  <h2>Owner Dashboard - Pending Payments</h2>
+  <p>Total ETH owed to sellers: <span id="totalPendingAmount">0</span> ETH</p>
+  <button onclick="payAllPendingSells()">Pay All Pending Sells</button>
+  
+  <h3>Individual Pending Payments</h3>
+  <table id="pendingPaymentsTable">
+    <tr>
+      <th>User Address</th>
+      <th>Tokens Sold</th>
+      <th>ETH Owed</th>
+      <th>Time</th>
+      <th>Action</th>
+    </tr>
+    <!-- Pending payments will be added here dynamically -->
+  </table>
+</div>
 </body>
 </html>
