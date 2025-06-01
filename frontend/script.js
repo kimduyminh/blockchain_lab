@@ -1,4 +1,4 @@
-// KDMToken Frontend - Fully Fixed JavaScript
+// KDMToken Frontend - Fully Fixed JavaScript with 3 decimal places formatting
 document.addEventListener('DOMContentLoaded', function() {
     // Check if ethers is loaded
     if (typeof ethers === 'undefined') {
@@ -11,223 +11,217 @@ document.addEventListener('DOMContentLoaded', function() {
     initApp();
 });
 
+// --- GLOBAL VARIABLES AND UTILITY FUNCTIONS ---
+let provider, signer, contract;
+let userAddress;
+let connectedNetwork;
+
+// Global utility functions - MOVED OUTSIDE initApp
+function formatEther(wei) {
+    return parseFloat(ethers.utils.formatEther(wei)).toFixed(3);
+}
+
+function parseEther(eth) {
+    return ethers.utils.parseEther(eth.toString());
+}
+
+function formatTokens(amount) {
+    return (Number(amount) / 1e18).toFixed(3);
+}
+
+function shortenAddress(address) {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+// Function to pay a single pending sell - GLOBAL SCOPE
+async function payPendingSell(sellerAddress) {
+  if (!contract || !userAddress) {
+    alert("Please connect your wallet first");
+    return;
+  }
+  
+  try {
+    const ownerAddress = await contract.owner();
+    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      alert("Only the owner can pay pending sells");
+      return;
+    }
+    
+    const pendingSell = await contract.pendingSells(sellerAddress);
+    const amount = pendingSell.amount;
+    
+    const tx = await contract.payPendingSell(sellerAddress, {
+      value: amount
+    });
+    
+    alert(`Sending ${formatEther(amount)} ETH to ${sellerAddress}`);
+    await tx.wait();
+    alert("Payment sent successfully!");
+    
+    // Refresh the pending payments display
+    await showPendingPayments();
+    
+  } catch (error) {
+    console.error("Error paying pending sell:", error);
+    alert("Error: " + error.message);
+  }
+}
+
+// Function to pay all pending sells at once - GLOBAL SCOPE
+async function payAllPendingSells() {
+  if (!contract || !userAddress) {
+    alert("Please connect your wallet first");
+    return;
+  }
+  
+  try {
+    const ownerAddress = await contract.owner();
+    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      alert("Only the owner can pay pending sells");
+      return;
+    }
+    
+    const pendingAddresses = await contract.getPendingSellAddresses();
+    if (pendingAddresses.length === 0) {
+      alert("No pending payments to process");
+      return;
+    }
+    
+    const totalPending = await contract.totalPendingAmount();
+    
+    const tx = await contract.payMultiplePendingSells(pendingAddresses, {
+      value: totalPending
+    });
+    
+    alert(`Sending ${formatEther(totalPending)} ETH to pay all pending sells`);
+    await tx.wait();
+    alert("All payments sent successfully!");
+    
+    // Refresh the pending payments display
+    await showPendingPayments();
+    
+  } catch (error) {
+    console.error("Error paying all pending sells:", error);
+    alert("Error: " + error.message);
+  }
+}
+
+// Function to display pending payments - GLOBAL SCOPE
+async function showPendingPayments() {
+  if (!contract || !userAddress) {
+    console.log("Contract or user address not available");
+    return;
+  }
+  
+  try {
+    // Check if user is owner
+    const ownerAddress = await contract.owner();
+    console.log("Owner check:", userAddress.toLowerCase(), ownerAddress.toLowerCase());
+    
+    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+      // Hide owner-only sections if not owner
+      document.getElementById('pendingPaymentsSection').style.display = 'none';
+      return;
+    }
+    
+    // Show owner-only sections
+    document.getElementById('pendingPaymentsSection').style.display = 'block';
+    console.log("Owner verified, showing pending payments section");
+    
+    // Get pending addresses
+    const pendingAddresses = await contract.getPendingSellAddresses();
+    console.log("Pending addresses:", pendingAddresses);
+    
+    const pendingPaymentsTable = document.getElementById('pendingPaymentsTable');
+    
+    // Clear existing table rows except header
+    pendingPaymentsTable.innerHTML = `
+      <tr>
+        <th>User Address</th>
+        <th>Tokens Sold</th>
+        <th>ETH Owed</th>
+        <th>Time</th>
+        <th>Action</th>
+      </tr>
+    `;
+    
+    // Get total pending amount
+    const totalPending = await contract.totalPendingAmount();
+    document.getElementById('totalPendingAmount').textContent = formatEther(totalPending);
+    console.log("Total pending amount:", formatEther(totalPending));
+    
+    // Add each pending payment to the table
+    for (const address of pendingAddresses) {
+      const pendingSell = await contract.pendingSells(address);
+      const row = document.createElement('tr');
+      
+      // Format date
+      const date = new Date(pendingSell.timestamp.toNumber() * 1000);
+      const formattedDate = date.toLocaleString();
+      
+      row.innerHTML = `
+        <td>${address.slice(0,6)}...${address.slice(-4)}</td>
+        <td>${formatTokens(pendingSell.tokens)}</td>
+        <td>${formatEther(pendingSell.amount)} ETH</td>
+        <td>${formattedDate}</td>
+        <td>
+          <button onclick="payPendingSell('${address}')">Pay</button>
+        </td>
+      `;
+      
+      pendingPaymentsTable.appendChild(row);
+    }
+    
+  } catch (error) {
+    console.error("Error showing pending payments:", error);
+  }
+}
+
 function initApp() {
     // Hardcoded contract address - replace with your own
-    const contractAddress = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9";
+    const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
     
-    // Contract ABI
+    // UPDATED Contract ABI - Now includes pending payment functions
     const contractABI = [
-        {
-            "inputs": [{"internalType": "address", "name": "_owner", "type": "address"}],
-            "stateMutability": "nonpayable",
-            "type": "constructor"
-        },
-        {
-            "inputs": [
-                {"internalType": "address", "name": "spender", "type": "address"},
-                {"internalType": "uint256", "name": "allowance", "type": "uint256"},
-                {"internalType": "uint256", "name": "needed", "type": "uint256"}
-            ],
-            "name": "ERC20InsufficientAllowance",
-            "type": "error"
-        },
-        {
-            "inputs": [
-                {"internalType": "address", "name": "sender", "type": "address"},
-                {"internalType": "uint256", "name": "balance", "type": "uint256"},
-                {"internalType": "uint256", "name": "needed", "type": "uint256"}
-            ],
-            "name": "ERC20InsufficientBalance",
-            "type": "error"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {"indexed": true, "internalType": "address", "name": "owner", "type": "address"},
-                {"indexed": true, "internalType": "address", "name": "spender", "type": "address"},
-                {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}
-            ],
-            "name": "Approval",
-            "type": "event"
-        },
-        {
-            "anonymous": false,
-            "inputs": [
-                {"indexed": true, "internalType": "address", "name": "from", "type": "address"},
-                {"indexed": true, "internalType": "address", "name": "to", "type": "address"},
-                {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}
-            ],
-            "name": "Transfer",
-            "type": "event"
-        },
-        {
-            "inputs": [],
-            "name": "DURATION",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "MAX_SUPPLY",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "SOLD",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {"internalType": "address", "name": "owner", "type": "address"},
-                {"internalType": "address", "name": "spender", "type": "address"}
-            ],
-            "name": "allowance",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {"internalType": "address", "name": "spender", "type": "address"},
-                {"internalType": "uint256", "name": "value", "type": "uint256"}
-            ],
-            "name": "approve",
-            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
-            "name": "balanceOf",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "buyToken",
-            "outputs": [],
-            "stateMutability": "payable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "decimals",
-            "outputs": [{"internalType": "uint8", "name": "", "type": "uint8"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "lastInterestUpdate",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "name",
-            "outputs": [{"internalType": "string", "name": "", "type": "string"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "owner",
-            "outputs": [{"internalType": "address", "name": "", "type": "address"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "price",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [{"internalType": "uint256", "name": "amountTokens", "type": "uint256"}],
-            "name": "sellToken",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "startTime",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "symbol",
-            "outputs": [{"internalType": "string", "name": "", "type": "string"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "totalSupply",
-            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-            "stateMutability": "view",
-            "type": "function"
-        },
-        {
-            "inputs": [
-                {"internalType": "address", "name": "to", "type": "address"},
-                {"internalType": "uint256", "name": "value", "type": "uint256"}
-            ],
-            "name": "transfer",
-            "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "updateTokenPrice",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        },
-        {
-            "inputs": [],
-            "name": "withdraw",
-            "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
-        }
+        // Original functions
+        {"inputs":[{"internalType":"address","name":"_owner","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},
+        {"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"allowance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"ERC20InsufficientAllowance","type":"error"},
+        {"inputs":[{"internalType":"address","name":"sender","type":"address"},{"internalType":"uint256","name":"balance","type":"uint256"},{"internalType":"uint256","name":"needed","type":"uint256"}],"name":"ERC20InsufficientBalance","type":"error"},
+        {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"owner","type":"address"},{"indexed":true,"internalType":"address","name":"spender","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Approval","type":"event"},
+        {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"from","type":"address"},{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"value","type":"uint256"}],"name":"Transfer","type":"event"},
+        {"inputs":[],"name":"MAX_SUPPLY","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"SOLD","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"address","name":"owner","type":"address"},{"internalType":"address","name":"spender","type":"address"}],"name":"allowance","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"address","name":"spender","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"approve","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+        {"inputs":[{"internalType":"address","name":"account","type":"address"}],"name":"balanceOf","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"buyToken","outputs":[],"stateMutability":"payable","type":"function"},
+        {"inputs":[],"name":"decimals","outputs":[{"internalType":"uint8","name":"","type":"uint8"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"lastInterestUpdate","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"name","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"price","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"uint256","name":"amountTokens","type":"uint256"}],"name":"sellToken","outputs":[],"stateMutability":"nonpayable","type":"function"},
+        {"inputs":[],"name":"startTime","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"symbol","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"totalSupply","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"address","name":"to","type":"address"},{"internalType":"uint256","name":"value","type":"uint256"}],"name":"transfer","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},
+        {"inputs":[],"name":"updateTokenPrice","outputs":[],"stateMutability":"nonpayable","type":"function"},
+        {"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},
+
+        // ADDED: Pending payment related functions
+        {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"seller","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"PendingPaymentSettled","type":"event"},
+        {"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"seller","type":"address"},{"indexed":false,"internalType":"uint256","name":"tokens","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"ethAmount","type":"uint256"},{"indexed":false,"internalType":"bool","name":"isPending","type":"bool"}],"name":"TokensSold","type":"event"},
+        {"inputs":[],"name":"getPendingSellAddresses","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"address","name":"seller","type":"address"}],"name":"payPendingSell","outputs":[],"stateMutability":"payable","type":"function"},
+        {"inputs":[{"internalType":"address[]","name":"sellers","type":"address[]"}],"name":"payMultiplePendingSells","outputs":[],"stateMutability":"payable","type":"function"},
+        {"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"pendingSellAddresses","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+        {"inputs":[{"internalType":"address","name":"","type":"address"}],"name":"pendingSells","outputs":[{"internalType":"uint256","name":"amount","type":"uint256"},{"internalType":"uint256","name":"tokens","type":"uint256"},{"internalType":"uint256","name":"timestamp","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"inputs":[],"name":"totalPendingAmount","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+        {"stateMutability":"payable","type":"receive"}
     ];
 
-    // Global variables
-    let provider, signer, contract;
-    let userAddress;
-    let connectedNetwork;
-    
     // Direct RPC connection to Hardhat node for special functions
     const rpcProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
-
-    // Utility functions
-    function formatEther(wei) {
-        return ethers.utils.formatEther(wei);
-    }
-
-    function parseEther(eth) {
-        return ethers.utils.parseEther(eth.toString());
-    }
-
-    function formatTokens(amount) {
-        return (Number(amount) / 1e18).toFixed(4);
-    }
-
-    function shortenAddress(address) {
-        return `${address.slice(0, 6)}...${address.slice(-4)}`;
-    }
 
     // Initialize web3 connection
     async function initWeb3() {
@@ -274,6 +268,9 @@ function initApp() {
             await loadContractData();
             await loadUserData();
             
+            // ADDED: Check and show pending payments
+            await showPendingPayments();
+            
             // Set up event listeners
             setupEventListeners();
             
@@ -303,6 +300,8 @@ function initApp() {
             userAddress = accounts[0];
             document.getElementById('wallet-address').textContent = shortenAddress(userAddress);
             loadUserData();
+            // ADDED: Check pending payments when account changes
+            showPendingPayments();
         }
     }
 
@@ -317,7 +316,7 @@ function initApp() {
                 contract.SOLD()
             ]);
             
-            // Update UI
+            // Update UI with 3 decimal places
             document.getElementById('token-price').textContent = `${formatEther(price)} ETH`;
             document.getElementById('max-supply').textContent = `${formatTokens(maxSupply)} KDM`;
             document.getElementById('sold-tokens').textContent = `${formatTokens(sold)} KDM`;
@@ -346,7 +345,7 @@ function initApp() {
                 contract.balanceOf(userAddress)
             ]);
             
-            // Update UI
+            // Update UI with 3 decimal places
             document.getElementById('eth-balance').textContent = `${formatEther(ethBalance)} ETH`;
             document.getElementById('token-balance').textContent = `${formatTokens(tokenBalance)} KDM`;
             
@@ -366,7 +365,7 @@ function initApp() {
             try {
                 const ethAmount = e.target.value || '0';
                 if (isNaN(ethAmount) || ethAmount <= 0) {
-                    document.getElementById('buy-token-estimate').textContent = '0';
+                    document.getElementById('buy-token-estimate').textContent = '0.000';
                     return;
                 }
                 
@@ -384,7 +383,7 @@ function initApp() {
             try {
                 const tokenAmount = e.target.value || '0';
                 if (isNaN(tokenAmount) || tokenAmount <= 0) {
-                    document.getElementById('sell-eth-estimate').textContent = '0';
+                    document.getElementById('sell-eth-estimate').textContent = '0.000';
                     return;
                 }
                 
@@ -435,7 +434,7 @@ function initApp() {
                 
                 // Clear input
                 document.getElementById('buy-eth-amount').value = '';
-                document.getElementById('buy-token-estimate').textContent = '0';
+                document.getElementById('buy-token-estimate').textContent = '0.000';
             } catch (error) {
                 console.error('Error buying tokens:', error);
                 buyStatus.textContent = 'Error: ' + (error.message || 'Transaction failed');
@@ -476,12 +475,15 @@ function initApp() {
                 await loadContractData();
                 await loadUserData();
                 
+                // ADDED: Check for pending payments after selling
+                await showPendingPayments();
+                
                 // Add to transaction list
-                addTransaction('Sell', tokenAmount + ' KDM', document.getElementById('sell-eth-estimate').textContent + ' ETH', tx.hash);
+                addTransaction('Sell', tokenAmount + ' KDM', document.getElementById('sell-eth-estimate').textContent, tx.hash);
                 
                 // Clear input
                 document.getElementById('sell-token-amount').value = '';
-                document.getElementById('sell-eth-estimate').textContent = '0';
+                document.getElementById('sell-eth-estimate').textContent = '0.000 ETH';
             } catch (error) {
                 console.error('Error selling tokens:', error);
                 sellStatus.textContent = 'Error: ' + (error.message || 'Transaction failed');
@@ -519,14 +521,14 @@ function initApp() {
                         // Mine a block to ensure the balance update takes effect
                         await rpcProvider.send("hardhat_mine", ["0x1"]);
                         
-                        demoStatus.textContent = '1,000,000 ETH added to your wallet!';
+                        demoStatus.textContent = '1,000,000.000 ETH added to your wallet!';
                         demoStatus.className = 'status success';
                         
                         // Update balance display
                         await loadUserData();
                         
                         // Add transaction to list
-                        addTransaction('Demo', '0 ETH', '1,000,000 ETH', 'demo-tx-' + Date.now());
+                        addTransaction('Demo', '0.000 ETH', '1,000,000.000 ETH', 'demo-tx-' + Date.now());
                     } else {
                         // For non-local networks where we can't manipulate balances
                         console.log("Demo funds not available on network:", network.name);
@@ -615,141 +617,4 @@ function initApp() {
                 console.error("Error checking for connected accounts:", err);
             });
     }
-    async function showPendingPayments() {
-  if (!contract || !userAddress) return;
-  
-  try {
-    // Check if user is owner
-    const ownerAddress = await contract.owner();
-    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      // Hide owner-only sections if not owner
-      document.getElementById('pendingPaymentsSection').style.display = 'none';
-      return;
-    }
-    
-    // Show owner-only sections
-    document.getElementById('pendingPaymentsSection').style.display = 'block';
-    
-    // Get pending addresses
-    const pendingAddresses = await contract.getPendingSellAddresses();
-    const pendingPaymentsTable = document.getElementById('pendingPaymentsTable');
-    
-    // Clear existing table rows
-    pendingPaymentsTable.innerHTML = `
-      <tr>
-        <th>User Address</th>
-        <th>Tokens Sold</th>
-        <th>ETH Owed</th>
-        <th>Time</th>
-        <th>Action</th>
-      </tr>
-    `;
-    
-    // Get total pending amount
-    const totalPending = await contract.totalPendingAmount();
-    document.getElementById('totalPendingAmount').textContent = ethers.utils.formatEther(totalPending);
-    
-    // Add each pending payment to the table
-    for (const address of pendingAddresses) {
-      const pendingSell = await contract.pendingSells(address);
-      const row = document.createElement('tr');
-      
-      // Format date
-      const date = new Date(pendingSell.timestamp * 1000);
-      const formattedDate = date.toLocaleString();
-      
-      row.innerHTML = `
-        <td>${address.slice(0,6)}...${address.slice(-4)}</td>
-        <td>${ethers.utils.formatUnits(pendingSell.tokens, 18)}</td>
-        <td>${ethers.utils.formatEther(pendingSell.amount)} ETH</td>
-        <td>${formattedDate}</td>
-        <td>
-          <button onclick="payPendingSell('${address}')">Pay</button>
-        </td>
-      `;
-      
-      pendingPaymentsTable.appendChild(row);
-    }
-    
-  } catch (error) {
-    console.error("Error showing pending payments:", error);
-  }
-}
-
-// Function to pay a single pending sell
-async function payPendingSell(sellerAddress) {
-  if (!contract || !userAddress) return;
-  
-  try {
-    const ownerAddress = await contract.owner();
-    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      alert("Only the owner can pay pending sells");
-      return;
-    }
-    
-    const pendingSell = await contract.pendingSells(sellerAddress);
-    const amount = pendingSell.amount;
-    
-    const tx = await contract.payPendingSell(sellerAddress, {
-      value: amount
-    });
-    
-    alert(`Sending ${ethers.utils.formatEther(amount)} ETH to ${sellerAddress}`);
-    await tx.wait();
-    alert("Payment sent successfully!");
-    
-    // Refresh the page
-    await showPendingPayments();
-    
-  } catch (error) {
-    console.error("Error paying pending sell:", error);
-    alert("Error: " + error.message);
-  }
-}
-
-// Function to pay all pending sells at once
-async function payAllPendingSells() {
-  if (!contract || !userAddress) return;
-  
-  try {
-    const ownerAddress = await contract.owner();
-    if (userAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
-      alert("Only the owner can pay pending sells");
-      return;
-    }
-    
-    const pendingAddresses = await contract.getPendingSellAddresses();
-    if (pendingAddresses.length === 0) {
-      alert("No pending payments to process");
-      return;
-    }
-    
-    const totalPending = await contract.totalPendingAmount();
-    
-    const tx = await contract.payMultiplePendingSells(pendingAddresses, {
-      value: totalPending
-    });
-    
-    alert(`Sending ${ethers.utils.formatEther(totalPending)} ETH to pay all pending sells`);
-    await tx.wait();
-    alert("All payments sent successfully!");
-    
-    // Refresh the page
-    await showPendingPayments();
-    
-  } catch (error) {
-    console.error("Error paying all pending sells:", error);
-    alert("Error: " + error.message);
-  }
-}
-
-// Call this function when page loads
-window.addEventListener('load', async () => {
-  // Other initialization code...
-  
-  // If connected, check pending payments for owner
-  if (contract) {
-    await showPendingPayments();
-  }
-});
 }

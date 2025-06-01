@@ -96,6 +96,26 @@
             </div>
         </div>
         
+        <!-- ADDED: Better styling for pending payments section -->
+        <div id="pendingPaymentsSection" class="info-card" style="display: none; margin-top: 30px;">
+            <h2>Owner Dashboard - Pending Payments</h2>
+            <p>Total ETH owed to sellers: <span id="totalPendingAmount">0</span> ETH</p>
+            <button onclick="payAllPendingSells()" class="action-button">Pay All Pending Sells</button>
+            
+            <h3 style="margin-top: 20px;">Individual Pending Payments</h3>
+            <div style="overflow-x: auto;">
+                <table id="pendingPaymentsTable" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">User Address</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Tokens Sold</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">ETH Owed</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Time</th>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Action</th>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
         <div class="admin-container">
             <button id="reset-contract" class="admin-button">Reset Contract Address</button>
         </div>
@@ -106,22 +126,5 @@
     </footer>
 
     <script src="script.js"></script>
-    <div id="pendingPaymentsSection" style="display: none;">
-  <h2>Owner Dashboard - Pending Payments</h2>
-  <p>Total ETH owed to sellers: <span id="totalPendingAmount">0</span> ETH</p>
-  <button onclick="payAllPendingSells()">Pay All Pending Sells</button>
-  
-  <h3>Individual Pending Payments</h3>
-  <table id="pendingPaymentsTable">
-    <tr>
-      <th>User Address</th>
-      <th>Tokens Sold</th>
-      <th>ETH Owed</th>
-      <th>Time</th>
-      <th>Action</th>
-    </tr>
-    <!-- Pending payments will be added here dynamically -->
-  </table>
-</div>
 </body>
 </html>

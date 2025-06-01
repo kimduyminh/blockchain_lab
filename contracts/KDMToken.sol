@@ -11,7 +11,6 @@ contract KDMToken is ERC20 {
     uint256 public SOLD = 0;
     uint256 public price = 5 ether;
     
-    // Pending payments tracking
     struct PendingSell {
         uint256 amount;
         uint256 tokens;
@@ -36,7 +35,7 @@ contract KDMToken is ERC20 {
         require(SOLD + tokensToBuy <= MAX_SUPPLY, "Not enough tokens available");
         _transfer(address(this), msg.sender, tokensToBuy);
         SOLD += tokensToBuy;
-        payable(owner).transfer(msg.value); // All ETH goes to owner
+        payable(owner).transfer(msg.value); 
     }
 
     function updateTokenPrice() public {
@@ -58,17 +57,13 @@ contract KDMToken is ERC20 {
         require(balanceOf(msg.sender) >= amountTokens, "Insufficient token balance");
         
         updateTokenPrice();
-        
-        // Calculate ETH to return based on current price
+       
         uint256 ethToReturn = (amountTokens * price) / 10**18;
         
-        // Transfer tokens from user to contract
         _transfer(msg.sender, address(this), amountTokens);
         
-        // Update sold count
         SOLD -= amountTokens;
         
-        // If contract has enough ETH, pay immediately
         if (address(this).balance >= ethToReturn) {
             payable(msg.sender).transfer(ethToReturn);
             emit TokensSold(msg.sender, amountTokens, ethToReturn, false);
@@ -87,16 +82,13 @@ contract KDMToken is ERC20 {
         }
     }
     
-    // Events for tracking
     event TokensSold(address indexed seller, uint256 tokens, uint256 ethAmount, bool isPending);
     event PendingPaymentSettled(address indexed seller, uint256 amount);
     
-    // Function to get all pending payment addresses
     function getPendingSellAddresses() external view returns (address[] memory) {
         return pendingSellAddresses;
     }
     
-    // Pay a specific pending sell
     function payPendingSell(address seller) external payable {
         require(msg.sender == owner, "Only owner can pay pending sells");
         require(pendingSells[seller].amount > 0, "No pending payment for this address");
@@ -104,21 +96,16 @@ contract KDMToken is ERC20 {
         
         uint256 amount = pendingSells[seller].amount;
         
-        // Send ETH to seller
         payable(seller).transfer(amount);
         
-        // Refund excess ETH to owner
         if (msg.value > amount) {
             payable(owner).transfer(msg.value - amount);
         }
         
-        // Update totals
         totalPendingAmount -= amount;
         
-        // Clear pending sell
         delete pendingSells[seller];
         
-        // Remove address from the array (replace with last element and pop)
         for (uint i = 0; i < pendingSellAddresses.length; i++) {
             if (pendingSellAddresses[i] == seller) {
                 pendingSellAddresses[i] = pendingSellAddresses[pendingSellAddresses.length - 1];
@@ -130,7 +117,6 @@ contract KDMToken is ERC20 {
         emit PendingPaymentSettled(seller, amount);
     }
     
-    // Pay multiple pending sells in one transaction
     function payMultiplePendingSells(address[] calldata sellers) external payable {
         require(msg.sender == owner, "Only owner can pay pending sells");
         
@@ -150,13 +136,10 @@ contract KDMToken is ERC20 {
                 payable(seller).transfer(amount);
                 totalPaid += amount;
                 
-                // Update totals
                 totalPendingAmount -= amount;
                 
-                // Clear pending sell
                 delete pendingSells[seller];
                 
-                // Remove address from the array
                 for (uint j = 0; j < pendingSellAddresses.length; j++) {
                     if (pendingSellAddresses[j] == seller) {
                         pendingSellAddresses[j] = pendingSellAddresses[pendingSellAddresses.length - 1];
@@ -169,13 +152,11 @@ contract KDMToken is ERC20 {
             }
         }
         
-        // Refund excess ETH
         if (msg.value > totalPaid) {
             payable(owner).transfer(msg.value - totalPaid);
         }
     }
     
-    // Allow contract to receive ETH
     receive() external payable {}
     
     function withdraw() external {
