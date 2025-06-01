@@ -45,7 +45,7 @@ contract KDMToken is ERC20 {
         if (nowDay <= last) return; 
 
         uint256 daysPassed = nowDay - last;
-        uint256 ethBalance = address(this).balance;
+        uint256 ethBalance = address(owner).balance;
         uint256 rate = ethBalance / (2 * 1e9);
 
         price += rate * daysPassed;
